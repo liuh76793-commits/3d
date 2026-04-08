@@ -1,5 +1,5 @@
 function cmin = estimateSegmentClearance3D(p1, p2, scene, step)
-% 估计线段 p1->p2 上的最小安全裕度（不是仅看端点）
+% 估计线段 p1->p2 上的最小安全裕度
 % 若线段碰撞，直接返回 0
 
 if nargin < 4 || isempty(step)

@@ -1,10 +1,5 @@
 function [tree, connected, newIdx, failCount, stats, stepLenUsed, deltaProg, clearVal, qualityVal] = ...
     connectTreeByMode3D(tree, q_target, scene, params, failCount, stats, treeTag, forcedState, metrics)
-% connectTreeByMode3D
-% 按当前模式执行 connect：
-% 1) Free / Narrow / Blocked / Approach 使用不同的步长与偏置策略
-% 2) 只在 Approach 下启用“强化直连”
-% 3) 节点质量评价不再只看终点 clearance，而看整段边的最小 clearance
 
 connected   = false;
 newIdx      = -1;
@@ -22,7 +17,6 @@ while true
     idxNear = findNearestNode3D(tree.nodes, q_target);
     q_near  = tree.nodes(idxNear, :);
 
-    % 自适应基础步长
     stepLenBase = params.baseStepLen ...
         + params.stepWeightClear * clipFinite(metrics.dbar,      0, 20) ...
         + params.stepWeightProg  * clipFinite(metrics.E_prog,    0, 10) ...
@@ -34,7 +28,6 @@ while true
             q_bias  = q_target;
 
         case "narrow"
-            % Narrow 里 connect 仍然以目标点为偏置，但步长更小
             stepLen = min(max(stepLenBase, params.minStepLen), 0.70 * params.baseStepLen);
             q_bias  = q_target;
 
@@ -66,21 +59,16 @@ while true
     stepLen = min(max(stepLen, params.minStepLen), params.maxStepLen);
     stepLenUsed = stepLen;
 
-    % 裁剪到边界内
     for k = 1:3
         q_bias(k) = min(max(q_bias(k), scene.boundary(k,1)), scene.boundary(k,2));
     end
 
     distToTarget = norm(q_target - q_near);
 
-    % ==========================================================
-    % 1) 只在 Approach 下，优先尝试整段直连 q_target
-    % ==========================================================
+    % 1) 只在 Approach 下优先整段直连 q_target
     if aggressiveConnect
         if ~checkSegmentCollision3D(q_near, q_target, scene, params.collisionStep)
             deltaProgTry = distToTarget;
-
-            % 关键修改：用整段最小 clearance，而不是只看 q_target 点
             clearValTry = estimateSegmentClearance3D( ...
                 q_near, q_target, scene, max(0.25, params.collisionStep/2));
 
@@ -105,13 +93,10 @@ while true
         end
     end
 
-    % ==========================================================
-    % 2) 原有近距离直连
-    % ==========================================================
+    % 2) 近距离直连
     if distToTarget <= params.connectThresh
         if ~checkSegmentCollision3D(q_near, q_target, scene, params.collisionStep)
             deltaProg = distToTarget;
-
             clearVal = estimateSegmentClearance3D( ...
                 q_near, q_target, scene, max(0.25, params.collisionStep/2));
 
@@ -125,9 +110,8 @@ while true
 
                 newIdx    = size(tree.nodes,1);
                 connected = true;
-                failCount = 0;
-
                 stats.(char(modeName)) = stats.(char(modeName)) + 1;
+                failCount = 0;
             else
                 failCount = failCount + 1;
             end
@@ -137,9 +121,7 @@ while true
         return;
     end
 
-    % ==========================================================
     % 3) 普通一步扩展
-    % ==========================================================
     q_new = steer3D(q_near, q_bias, stepLen);
 
     if norm(q_new - q_near) < 1e-10
@@ -158,8 +140,6 @@ while true
     end
 
     deltaProg = norm(q_target - q_near) - norm(q_target - q_new);
-
-    % 关键修改：用整段边最小 clearance
     clearVal = estimateSegmentClearance3D( ...
         q_near, q_new, scene, max(0.25, params.collisionStep/2));
 
@@ -179,13 +159,10 @@ while true
     stats.(char(modeName)) = stats.(char(modeName)) + 1;
     failCount = 0;
 
-    % ==========================================================
-    % 4) 只在 Approach 下，走一步后再尝试一次直接连 q_target
-    % ==========================================================
+    % 4) Approach 下走一步后再尝试一次直连
     if aggressiveConnect
         if ~checkSegmentCollision3D(q_new, q_target, scene, params.collisionStep)
             deltaProgTry = norm(q_target - q_new);
-
             clearValTry = estimateSegmentClearance3D( ...
                 q_new, q_target, scene, max(0.25, params.collisionStep/2));
 
@@ -209,13 +186,10 @@ while true
         end
     end
 
-    % ==========================================================
     % 5) 原有 connectThresh 判定
-    % ==========================================================
     if norm(q_new - q_target) <= params.connectThresh
         if ~checkSegmentCollision3D(q_new, q_target, scene, params.collisionStep)
             deltaProg2 = norm(q_target - q_new);
-
             clearVal2 = estimateSegmentClearance3D( ...
                 q_new, q_target, scene, max(0.25, params.collisionStep/2));
 
@@ -229,17 +203,15 @@ while true
 
                 newIdx     = size(tree.nodes,1);
                 connected  = true;
-                deltaProg  = deltaProg2;
-                clearVal   = clearVal2;
                 qualityVal = qualityVal2;
+                clearVal   = clearVal2;
+                deltaProg  = deltaProg2;
 
                 stats.(char(modeName)) = stats.(char(modeName)) + 1;
             end
         end
         return;
     end
-
-    % 如果还没连上，while true 继续下一步 connect
 end
 
 end

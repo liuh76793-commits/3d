@@ -1,9 +1,8 @@
 function q_rand = sampleBiased3D(scene, params, treeA, treeB)
 % sampleBiased3D
-% 改进点：
-% 1) 不再无脑总是朝 scene.goal 偏置
-% 2) 当前扩展树若根在 start，则偏向 goal
-%    当前扩展树若根在 goal，则偏向 start
+% 修正版：
+% 1) 当前扩展树若根在 start，则偏向 goal
+% 2) 当前扩展树若根在 goal，则偏向 start
 % 3) 仍保留两树中间区域采样，利于会合
 
 r = rand;
@@ -20,7 +19,7 @@ end
 if r < params.goalSampleRate
     q_rand = targetBias;
 else
-    % 2) 朝两树前沿中间区域采样，促进会合
+    % 2) 朝两树中间区域采样，促进会合
     if r < params.goalSampleRate + 0.15 && size(treeA.nodes,1) > 1 && size(treeB.nodes,1) > 1
         idxA = randi(size(treeA.nodes,1));
         idxB = randi(size(treeB.nodes,1));

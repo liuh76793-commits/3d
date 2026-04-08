@@ -90,7 +90,7 @@ end
 
 deltaProg = norm(q_target - q_near) - norm(q_target - q_new);
 
-% 关键：用整段边最小 clearance，而不是只看 q_new 点
+% 用整段边最小 clearance，而不是只看 q_new 点
 clearVal = estimateSegmentClearance3D(q_near, q_new, scene, max(0.25, params.collisionStep/2));
 
 [qualityVal, accepted] = evaluateNodeQuality3D(deltaProg, clearVal, metrics.rho_local, params);

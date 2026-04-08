@@ -18,7 +18,7 @@ params.windowSize              = 20;
 params.N_succ_min_for_pca      = 4;
 params.localDensityRadius      = 9.0;
 
-%% 4. 迟滞状态机参数
+%% 4. 状态机参数
 params.free_enter_Rsucc        = 0.76;
 params.free_exit_Rsucc         = 0.60;
 params.free_enter_dbar         = 6.0;
@@ -51,26 +51,24 @@ params.dwell_narrow   = 1;
 params.dwell_blocked  = 1;
 params.dwell_approach = 2;
 
-%% 5. 自适应步长参数
+%% 5. 自适应步长
 params.stepWeightClear = 0.48;
 params.stepWeightProg  = 0.12;
 params.stepWeightDens  = 1.15;
 
-%% 6. Narrow 模式
+%% 6. Narrow
 params.narrowDirectionalNoise = 0.08;
 params.narrowLookAheadFactor  = 1.35;
 
-%% 7. Blocked 模式
+%% 7. Blocked
 params.blockedBackSteps       = 1;
 params.blockedLateralNoise    = 0.20;
 
-%% 8. 节点质量评价参数
+%% 8. 节点质量评价
 params.qualityWeightProg      = 0.30;
 params.qualityWeightClear     = 1.60;
 params.qualityWeightDensity   = 1.00;
 params.qualityThreshold       = 0.18;
-
-% 新增
 params.minAcceptClearance     = 0.18;
 params.clearanceSoftRef       = 1.20;
 

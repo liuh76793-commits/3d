@@ -1,0 +1,13 @@
+function plotPath3D(path, colorRGB, lineWidth)
+if isempty(path)
+    return;
+end
+
+plot3(path(:,1), path(:,2), path(:,3), '-', ...
+    'Color', colorRGB, 'LineWidth', lineWidth);
+
+plot3(path(:,1), path(:,2), path(:,3), 'o', ...
+    'Color', colorRGB, ...
+    'MarkerSize', 4, ...
+    'MarkerFaceColor', colorRGB);
+end

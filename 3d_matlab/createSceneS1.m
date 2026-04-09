@@ -65,7 +65,7 @@ obs(end).color  = [0.68, 0.78, 0.24];
 
 % 右竖板（错位，形成偏折）
 obs(end+1).type = 'cuboid';
-obs(end).range  = [76 80; 44 76; 0 76];
+obs(end).range  = [76 80; 44 65; 0 76];
 obs(end).color  = [0.68, 0.78, 0.24];
 
 % 偏折处短挡板：注意与 B 区不重叠
@@ -75,7 +75,7 @@ obs(end).color  = [0.68, 0.78, 0.24];
 
 %% D. 中右部 U 型困陷：专门触发 Blocked（与 goal 区分离）
 obs(end+1).type = 'u_shape';
-obs(end).base      = [62, 65, 15];
+obs(end).base      = [62, 75, 15];
 obs(end).size      = [12, 14, 24];
 obs(end).thickness = 3;
 obs(end).opening   = '-y';
@@ -83,7 +83,7 @@ obs(end).color     = [0.92, 0.70, 0.18];
 
 %% E. 球体：调节安全裕度与曲面绕行（避开 U 与 goal 门口）
 obs(end+1).type = 'sphere';
-obs(end).center = [42, 78, 36];
+obs(end).center = [62, 78, 52];
 obs(end).radius = 6;
 obs(end).color  = [0.95, 0.76, 0.16];
 

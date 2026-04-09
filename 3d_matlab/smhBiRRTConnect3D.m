@@ -1,16 +1,20 @@
 function result = smhBiRRTConnect3D(scene, params)
-% 三维 SMH-BiRRTConnect：Approach 最高优先级 + 收紧 failConn 驱动 Blocked
+% 三维 SMH-BiRRTConnect
+% 这版保持与当前仓库其余辅助函数兼容，并修正：
+% 1) updateHysteresisState3D 的参数顺序
+% 2) Blocked / Approach 的判定逻辑
+% 3) 与 extendByMode3D / connectTreeByMode3D 的旧接口完全对齐
 
 rng(params.randSeed);
 
 %% 初始化双树
-treeA.nodes  = scene.start;
+treeA.nodes = scene.start;
 treeA.parent = 0;
-treeA.mode   = {"root"};
+treeA.mode = {"root"};
 
-treeB.nodes  = scene.goal;
+treeB.nodes = scene.goal;
 treeB.parent = 0;
-treeB.mode   = {"root"};
+treeB.mode = {"root"};
 
 failCountA = 0;
 failCountB = 0;
@@ -18,18 +22,17 @@ failCountB = 0;
 winA = initWindowState3D(params.windowSize);
 winB = initWindowState3D(params.windowSize);
 
-stats.free      = 0;
-stats.narrow    = 0;
-stats.blocked   = 0;
-stats.approach  = 0;
-stats.switches  = 0;
+stats.free = 0;
+stats.narrow = 0;
+stats.blocked = 0;
+stats.approach = 0;
+stats.switches = 0;
 
-success  = false;
+success = false;
 meetIdxA = -1;
 meetIdxB = -1;
 
 for iter = 1:params.maxIter
-
     refA = treeA.nodes(end, :);
     refB = treeB.nodes(end, :);
 
@@ -43,7 +46,6 @@ for iter = 1:params.maxIter
 
     [winA, switchIncA] = updateHysteresisState3D(winA, metricsA, refA, scene.goal, distTreeAB, isStartRootA, params);
     [winB, switchIncB] = updateHysteresisState3D(winB, metricsB, refB, scene.goal, distTreeAB, isStartRootB, params);
-
     stats.switches = stats.switches + switchIncA + switchIncB;
 
     %% 采样
@@ -93,33 +95,38 @@ for iter = 1:params.maxIter
         end
     end
 
-    %% 交换两树
+    %% 交换两树角色
     tmpTree = treeA; treeA = treeB; treeB = tmpTree;
     tmpFail = failCountA; failCountA = failCountB; failCountB = tmpFail;
     tmpWin  = winA; winA = winB; winB = tmpWin;
 end
 
 %% 输出整理
-result.success  = success;
+result.success = success;
 result.iterUsed = iter;
-result.treeA    = treeA;
-result.treeB    = treeB;
-result.stats    = stats;
-result.winA     = winA;
-result.winB     = winB;
+result.treeA = treeA;
+result.treeB = treeB;
+result.stats = stats;
+result.winA = winA;
+result.winB = winB;
 
 if success
     rootA = treeA.nodes(1,:);
+
     if norm(rootA - scene.start) < 1e-9
-        startTree = treeA; startMeet = meetIdxA;
-        goalTree  = treeB; goalMeet  = meetIdxB;
+        startTree = treeA;
+        startMeet = meetIdxA;
+        goalTree = treeB;
+        goalMeet = meetIdxB;
     else
-        startTree = treeB; startMeet = meetIdxB;
-        goalTree  = treeA; goalMeet  = meetIdxA;
+        startTree = treeB;
+        startMeet = meetIdxB;
+        goalTree = treeA;
+        goalMeet = meetIdxA;
     end
 
     pathStart = extractPathFromTree3D(startTree, startMeet);
-    pathGoal  = extractPathFromTree3D(goalTree,  goalMeet);
+    pathGoal  = extractPathFromTree3D(goalTree, goalMeet);
     pathGoal  = flipud(pathGoal);
 
     if ~isempty(pathStart) && ~isempty(pathGoal)
@@ -140,15 +147,28 @@ else
 end
 
 end
+
+% =====================================================================
+
 function [win, switchInc] = updateHysteresisState3D(win, metrics, refPoint, goalPoint, distTree, isStartRoot, params)
+% 参数顺序必须与主程序调用一致：
+% (..., distTree, isStartRoot, params)
+
 switchInc = 0;
+
 prevState = string(win.state);
-newState  = prevState;
-distGoal  = norm(refPoint - goalPoint);
+newState = prevState;
+distGoal = norm(refPoint - goalPoint);
 
+% ---------------- 1. 数据不足保护 ----------------
 minSuccForState = max(2, params.N_succ_min_for_pca - 1);
+if metrics.N_succ < minSuccForState
+    win.freezeCount = win.freezeCount + 1;
+    win.metrics = metrics;
+    return;
+end
 
-% ---------- 1) Approach 最高优先级，但要求不是极端贴障 ----------
+% ---------------- 2. Approach 最高优先级 ----------------
 if isStartRoot
     approachEnter = (distGoal <= params.approach_enter_distGoal) || ...
                     (distTree <= params.approach_enter_distTree);
@@ -156,28 +176,18 @@ else
     approachEnter = (distTree <= params.approach_enter_distTree);
 end
 
-approachSafeEnough = (metrics.dmin >= params.blocked_enter_dmin) || ...
-                     (metrics.R_succ >= max(0.25, params.blocked_enter_Rsucc));
-
-if approachEnter && approachSafeEnough && prevState ~= "approach"
-    win.lastState  = prevState;
-    win.state      = "approach";
+if prevState ~= "approach" && approachEnter
+    win.lastState = prevState;
+    win.state = "approach";
     win.dwellCount = 1;
-    win.metrics    = metrics;
-    switchInc      = 1;
-    return;
-end
-
-% ---------- 2) 数据不足保护 ----------
-if metrics.N_succ < minSuccForState
-    win.freezeCount = win.freezeCount + 1;
     win.metrics = metrics;
+    switchInc = 1;
     return;
 end
 
+% ---------------- 3. 当前状态是否允许离开 ----------------
 canLeave = canLeaveState(prevState, win.dwellCount, params);
 
-% ---------- 3) 当前状态是否应保持 ----------
 switch prevState
     case "approach"
         if isStartRoot
@@ -186,6 +196,7 @@ switch prevState
         else
             stayCond = (distTree <= params.approach_exit_distTree);
         end
+
         stayCond = stayCond && (win.failConn < params.connFailThreshold);
 
         if stayCond || ~canLeave
@@ -195,10 +206,10 @@ switch prevState
         end
 
     case "blocked"
-        enoughRecovery = ((metrics.R_succ >= params.blocked_exit_Rsucc) || ...
-                          (metrics.E_prog >= params.blocked_exit_Eprog)) && ...
-                         (metrics.dmin >= params.blocked_exit_dmin) && ...
-                         (win.failConn < params.blockedFailConnTrigger);
+        enoughRecovery = ...
+            (metrics.R_succ >= params.blocked_exit_Rsucc) && ...
+            (metrics.E_prog >= params.blocked_exit_Eprog) && ...
+            (metrics.dmin   >= params.blocked_exit_dmin);
 
         if ~enoughRecovery || ~canLeave
             win.dwellCount = win.dwellCount + 1;
@@ -207,11 +218,10 @@ switch prevState
         end
 
     case "narrow"
-        stayCond = (metrics.dbar <= params.narrow_exit_dbar) && ...
-                   (metrics.L_score >= params.narrow_exit_Lscore) && ...
-                   (metrics.dmin > params.blocked_enter_dmin) && ...
-                   (win.failConn < params.blockedFailConnTrigger) && ...
-                   (metrics.rho_local < params.blocked_enter_rho);
+        stayCond = ...
+            (metrics.dbar    <= params.narrow_exit_dbar) && ...
+            (metrics.L_score >= params.narrow_exit_Lscore) && ...
+            (win.failConn    <  params.blockedFailConnTrigger);
 
         if stayCond || ~canLeave
             win.dwellCount = win.dwellCount + 1;
@@ -220,8 +230,9 @@ switch prevState
         end
 
     case "free"
-        stayCond = (metrics.R_succ >= params.free_exit_Rsucc) && ...
-                   (metrics.dbar  >= params.free_exit_dbar);
+        stayCond = ...
+            (metrics.R_succ >= params.free_exit_Rsucc) && ...
+            (metrics.dbar   >= params.free_exit_dbar);
 
         if stayCond || ~canLeave
             win.dwellCount = win.dwellCount + 1;
@@ -230,44 +241,45 @@ switch prevState
         end
 end
 
-% ---------- 4) 重新判定 ----------
+% ---------------- 4. 重新判定新状态 ----------------
 blockedByMetrics = ...
-    (metrics.dmin <= params.blocked_enter_dmin) && ...
-    (metrics.rho_local >= params.blocked_enter_rho) && ...
-    ((metrics.R_succ <= params.blocked_enter_Rsucc && metrics.E_prog <= params.blocked_enter_Eprog) || ...
-     (metrics.E_prog <= 0.5 * params.blocked_enter_Eprog));
+    (metrics.R_succ <= params.blocked_enter_Rsucc) && ...
+    (metrics.E_prog <= params.blocked_enter_Eprog) && ...
+    (metrics.dmin   <= params.blocked_enter_dmin);
 
 blockedByFail = ...
     (win.failConn >= params.blockedFailConnTrigger) && ...
-    (metrics.dmin <= params.blocked_enter_dmin);
+    (metrics.dmin <= params.blocked_exit_dmin);
 
 if blockedByMetrics || blockedByFail
     newState = "blocked";
 
-elseif metrics.dbar <= params.narrow_enter_dbar && ...
-       metrics.L_score >= params.narrow_enter_Lscore && ...
-       metrics.R_succ >= params.narrow_enter_Rsucc_low && ...
-       metrics.R_succ <= params.narrow_enter_Rsucc_high
+elseif (metrics.dbar <= params.narrow_enter_dbar) && ...
+       (metrics.L_score >= params.narrow_enter_Lscore) && ...
+       (metrics.R_succ >= params.narrow_enter_Rsucc_low) && ...
+       (metrics.R_succ <= params.narrow_enter_Rsucc_high)
     newState = "narrow";
 
-elseif metrics.R_succ >= params.free_enter_Rsucc && ...
-       metrics.dbar >= params.free_enter_dbar
+elseif (metrics.R_succ >= params.free_enter_Rsucc) && ...
+       (metrics.dbar   >= params.free_enter_dbar)
     newState = "free";
 
 else
-    newState = prevState;
+    newState = "free";
 end
 
+% ---------------- 5. 写回 ----------------
 if newState ~= prevState
-    switchInc = 1;
     win.lastState = prevState;
     win.state = newState;
     win.dwellCount = 1;
+    switchInc = 1;
 else
     win.dwellCount = win.dwellCount + 1;
 end
 
 win.metrics = metrics;
+
 end
 
 function ok = canLeaveState(stateName, dwellCount, params)

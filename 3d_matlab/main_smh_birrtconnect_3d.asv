@@ -79,7 +79,7 @@ params.qualityWeightClear   = 1.35;
 params.qualityWeightDensity = 0.90;
 params.qualityThreshold     = 0.10;
 params.minAcceptClearance   = 0.20;
-params.clearanceSoftRef     = 1.20;
+params.clearanceSoftRef     = 1.90;
 
 %% 9. 平滑 / 剪枝
 params.seedMinSafeClearance  = 1.2;
